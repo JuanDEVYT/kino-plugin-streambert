@@ -11,7 +11,7 @@ test("Manifest valid and has required keys", () => {
   const manifest = JSON.parse(raw);
   assert.equal(manifest.id, "streambert");
   assert.equal(manifest.name, "StreamBert");
-  assert.equal(manifest.version, "1.0.2");
+  assert.equal(manifest.version, "1.0.3");
   assert.equal(manifest.apiVersion, 20);
   assert.ok(manifest.capabilities.includes("screen"));
   assert.ok(manifest.capabilities.includes("resolve"));
@@ -57,3 +57,23 @@ test("screenEvent handles tab change and settings change", async () => {
   assert.equal(srcRes.config.default_source, "aether");
   assert.equal(srcRes.state.source, "aether");
 });
+
+test("All 4 Screen tabs produce valid trees without dropped nodes", async () => {
+  for (const tab of ["home", "movies", "series", "settings"]) {
+    const tree = await plugin.screen({ state: { tab } });
+    assert.equal(tree.type, "scaffold");
+    const checked = checkScreenTree(tree, "es", undefined, { apiVersion: 20 });
+    assert.ok(checked.tree !== null, `Tab ${tab} scaffold tree must be valid`);
+    assert.equal(checked.dropped.length, 0, `Tab ${tab} has no dropped nodes`);
+  }
+});
+
+test("episodes and resolve accept primitive and string numeric refs safely", async () => {
+  const epRes = await plugin.episodes("1399");
+  assert.ok(epRes !== null);
+
+  await assert.rejects(async () => {
+    await plugin.resolve("550");
+  });
+});
+

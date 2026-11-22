@@ -125,7 +125,7 @@ export async function home() {
     fetchTmdb("/movie/popular"),
     fetchTmdb("/tv/popular"),
     fetchTmdb("/movie/top_rated"),
-    fetchTmdb("/discover/tv", { with_genres: "16" })
+    fetchTmdb("/discover/tv", { with_genres: "16", with_original_language: "ja" })
   ]);
 
   const rows = [];
@@ -237,8 +237,9 @@ export async function browse(ref, cursor) {
     return { items: [], next: null };
   }
 
-  const items = data.results.map((r) => toKinoItem(r)).filter(Boolean);
-  const next = data.page < data.total_pages ? String(data.page + 1) : null;
+  const defaultKind = path.includes("/tv") ? "series" : "movie";
+  const items = data.results.map((r) => toKinoItem(r, defaultKind)).filter(Boolean);
+  const next = data.page < data.total_pages && data.page < 500 ? String(data.page + 1) : null;
 
   return { items, next };
 }
@@ -265,12 +266,42 @@ export async function search(query) {
     .slice(0, 60);
 }
 
+// Normalizador seguro de subtítulos para el contrato de Kino
+function normalizeSubtitles(subs) {
+  if (!Array.isArray(subs)) return [];
+  return subs
+    .filter((s) => s && (typeof s.url === "string" || typeof s === "string"))
+    .map((s) => {
+      if (typeof s === "string") {
+        return { url: s, lang: "es", label: "Español", format: "vtt" };
+      }
+      return {
+        url: s.url,
+        lang: s.lang || s.language || "es",
+        label: s.label || s.title || "Subtítulo",
+        format: s.format || (s.url.includes(".srt") ? "srt" : "vtt")
+      };
+    })
+    .slice(0, 15);
+}
+
 // ── Export: episodes ─────────────────────────────────────────────────────────
 export async function episodes(ref) {
   let item = null;
-  try {
-    item = typeof ref === "string" ? JSON.parse(ref) : ref;
-  } catch {
+  if (typeof ref === "string") {
+    try {
+      const parsed = JSON.parse(ref);
+      if (parsed && typeof parsed === "object") {
+        item = parsed;
+      } else {
+        item = { id: parsed, kind: "series" };
+      }
+    } catch {
+      item = { id: ref, kind: "series" };
+    }
+  } else if (ref && typeof ref === "object") {
+    item = ref;
+  } else {
     item = { id: ref, kind: "series" };
   }
 
@@ -349,9 +380,20 @@ export async function episodes(ref) {
 // ── Export: resolve ──────────────────────────────────────────────────────────
 export async function resolve(ref) {
   let target = null;
-  try {
-    target = typeof ref === "string" ? JSON.parse(ref) : ref;
-  } catch {
+  if (typeof ref === "string") {
+    try {
+      const parsed = JSON.parse(ref);
+      if (parsed && typeof parsed === "object") {
+        target = parsed;
+      } else {
+        target = { id: parsed, kind: "movie" };
+      }
+    } catch {
+      target = { id: ref, kind: "movie" };
+    }
+  } else if (ref && typeof ref === "object") {
+    target = ref;
+  } else {
     target = { id: ref, kind: "movie" };
   }
 
@@ -392,7 +434,7 @@ export async function resolve(ref) {
             url: direct.url,
             mime: direct.mime || "application/x-mpegURL",
             headers: direct.headers || { Referer: src.url },
-            subtitles: direct.subtitles || [],
+            subtitles: normalizeSubtitles(direct.subtitles),
             label: `StreamBert (${src.name})`
           };
         }
@@ -403,7 +445,7 @@ export async function resolve(ref) {
     if (typeof kino !== "undefined" && kino.browser && typeof kino.browser.capture === "function") {
       try {
         const capture = await kino.browser.capture(src.url, {
-          timeoutMs: 16000,
+          timeoutMs: 12000,
           autoplay: true,
           headers: {
             "User-Agent":
@@ -413,13 +455,30 @@ export async function resolve(ref) {
         });
 
         if (capture && capture.media && capture.media.length > 0) {
-          const media = capture.media.find((m) => m.url && m.url.includes(".m3u8")) || capture.media[0];
+          // Filtrar anuncios y rastreadores conocidos
+          const cleanMedia = capture.media.filter((m) => {
+            if (!m || !m.url) return false;
+            const u = m.url.toLowerCase();
+            return (
+              !u.includes("adsystem") &&
+              !u.includes("doubleclick") &&
+              !u.includes("analytics") &&
+              !u.includes("telemetry") &&
+              !u.includes("/ad/") &&
+              !u.includes("popads") &&
+              !u.includes("vast")
+            );
+          });
+
+          const candidates = cleanMedia.length > 0 ? cleanMedia : capture.media;
+          const media = candidates.find((m) => m.url && m.url.includes(".m3u8")) || candidates[0];
+
           if (media && media.url) {
             return {
               url: media.url,
               mime: media.mime || (media.url.includes(".m3u8") ? "application/x-mpegURL" : "video/mp4"),
               headers: media.headers || { Referer: src.referer },
-              subtitles: capture.subtitles || [],
+              subtitles: normalizeSubtitles(capture.subtitles),
               label: `StreamBert (${src.name})`
             };
           }
@@ -674,7 +733,7 @@ export async function screen({ state = {}, lang = "es" } = {}) {
     const [onAir, popSeries, animeSeries, dramaSeries] = await Promise.all([
       fetchTmdb("/tv/on_the_air"),
       fetchTmdb("/tv/popular"),
-      fetchTmdb("/discover/tv", { with_genres: "16" }),
+      fetchTmdb("/discover/tv", { with_genres: "16", with_original_language: "ja" }),
       fetchTmdb("/discover/tv", { with_genres: "18" })
     ]);
 
@@ -753,7 +812,7 @@ export async function screen({ state = {}, lang = "es" } = {}) {
             },
             {
               type: "text",
-              text: `Versión 1.0.0 • Servidor activo: ${currentSourceName}`,
+              text: `Versión 1.0.3 • Servidor activo: ${currentSourceName}`,
               color: "muted"
             },
             {
