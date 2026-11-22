@@ -11,7 +11,7 @@ test("Manifest valid and has required keys", () => {
   const manifest = JSON.parse(raw);
   assert.equal(manifest.id, "streambert");
   assert.equal(manifest.name, "StreamBert");
-  assert.equal(manifest.version, "1.0.1");
+  assert.equal(manifest.version, "1.0.2");
   assert.equal(manifest.apiVersion, 20);
   assert.ok(manifest.capabilities.includes("screen"));
   assert.ok(manifest.capabilities.includes("resolve"));

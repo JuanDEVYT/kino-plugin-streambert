@@ -7,9 +7,27 @@ const TMDB_IMAGE_W1280 = "https://image.tmdb.org/t/p/w1280";
 // Normalización de ítems TMDB para Kino
 function toKinoItem(item, defaultKind = "movie") {
   if (!item || !item.id) return null;
-  const isTv = item.media_type === "tv" || defaultKind === "series" || !!item.name;
-  const kind = isTv ? "series" : "movie";
-  const title = (item.title || item.name || "Sin título").trim();
+
+  let kind = defaultKind;
+  if (item.media_type === "tv") {
+    kind = "series";
+  } else if (item.media_type === "movie") {
+    kind = "movie";
+  } else if (item.first_air_date && !item.release_date) {
+    kind = "series";
+  } else if (item.release_date && !item.first_air_date) {
+    kind = "movie";
+  } else if (item.name && !item.title) {
+    kind = "series";
+  } else if (item.title && !item.name) {
+    kind = "movie";
+  }
+
+  const title = (item.title || item.name || "").trim();
+  if (!title) return null;
+  // Descartar ítems sin imagen o sin ficha gráfica completa en TMDB
+  if (!item.poster_path && !item.backdrop_path) return null;
+
   const dateStr = item.release_date || item.first_air_date || "";
   const year = dateStr ? parseInt(dateStr.slice(0, 4), 10) : undefined;
   const poster = item.poster_path ? `${TMDB_IMAGE_W500}${item.poster_path}` : undefined;
@@ -20,7 +38,7 @@ function toKinoItem(item, defaultKind = "movie") {
     id: item.id,
     kind,
     title,
-    year: year || null
+    year: Number.isFinite(year) ? year : null
   };
 
   return {
@@ -41,8 +59,20 @@ function toKinoItem(item, defaultKind = "movie") {
 async function fetchTmdb(path, params = {}) {
   if (typeof kino === "undefined" || typeof kino.tmdb !== "function") return null;
   try {
-    const defaultParams = { language: "es-ES", ...params };
-    return await kino.tmdb(path, defaultParams);
+    let cleanPath = path;
+    const mergedParams = { language: "es-ES", ...params };
+    if (cleanPath.includes("?")) {
+      const parts = cleanPath.split("?");
+      cleanPath = parts[0];
+      const qs = parts[1];
+      const sp = new URLSearchParams(qs);
+      for (const [k, v] of sp.entries()) {
+        if (mergedParams[k] === undefined) {
+          mergedParams[k] = v;
+        }
+      }
+    }
+    return await kino.tmdb(cleanPath, mergedParams);
   } catch (err) {
     return null;
   }
@@ -245,8 +275,32 @@ export async function episodes(ref) {
   }
 
   const tmdbId = item.id;
-  const seriesData = await fetchTmdb(`/tv/${tmdbId}`);
+  let seriesData = await fetchTmdb(`/tv/${tmdbId}`);
   if (!seriesData) {
+    // Si no existe como serie, verificar si es una película
+    const movieData = await fetchTmdb(`/movie/${tmdbId}`);
+    if (movieData) {
+      return {
+        series: {
+          title: movieData.title,
+          overview: movieData.overview || "",
+          poster: movieData.poster_path ? `${TMDB_IMAGE_W500}${movieData.poster_path}` : undefined
+        },
+        episodes: [
+          {
+            season: 1,
+            number: 1,
+            title: movieData.title,
+            overview: movieData.overview || "",
+            ref: JSON.stringify({
+              id: tmdbId,
+              kind: "movie",
+              title: movieData.title
+            })
+          }
+        ]
+      };
+    }
     return { episodes: [] };
   }
 
@@ -446,25 +500,29 @@ export async function screen({ state = {}, lang = "es" } = {}) {
 
   // ── Pestaña: INICIO ────────────────────────────────────────────────────────
   if (tab === "home") {
-    const [trending, popMovies, popTv] = await Promise.all([
-      fetchTmdb("/trending/all/day"),
+    const [trendingMovies, popMovies, popTv] = await Promise.all([
+      fetchTmdb("/trending/movie/day"),
       fetchTmdb("/movie/popular"),
       fetchTmdb("/tv/popular")
     ]);
 
     const scrollChildren = [];
 
-    const trendingItems = trending && trending.results ? trending.results.map((r) => toKinoItem(r)).filter(Boolean) : [];
     const movieItems = popMovies && popMovies.results ? popMovies.results.map((r) => toKinoItem(r, "movie")).filter(Boolean) : [];
+    const trendingItems = trendingMovies && trendingMovies.results ? trendingMovies.results.map((r) => toKinoItem(r, "movie")).filter(Boolean) : [];
     const tvItems = popTv && popTv.results ? popTv.results.map((r) => toKinoItem(r, "series")).filter(Boolean) : [];
 
-    // HeroCard destacado con el primer título en tendencia
-    if (trendingItems.length > 0) {
-      const hero = trendingItems[0];
+    // Seleccionar siempre una película reconocida y con sinopsis para el HeroCard
+    const hero = movieItems.find((m) => m.backdrop && m.overview && m.overview.length > 40 && m.rating && m.rating >= 6.0) ||
+                 trendingItems.find((m) => m.backdrop && m.overview && m.overview.length > 30) ||
+                 movieItems[0] ||
+                 trendingItems[0];
+
+    if (hero) {
       scrollChildren.push({
         type: "heroCard",
         title: hero.title,
-        text: (hero.overview || "Descubre lo más visto del momento sin interrupciones.").slice(0, 220),
+        text: (hero.overview || "Descubre lo mejor del cine en streaming sin cortes.").slice(0, 220),
         image: hero.backdrop || hero.poster,
         buttons: [
           {
@@ -476,8 +534,9 @@ export async function screen({ state = {}, lang = "es" } = {}) {
               go: {
                 play: {
                   ref: hero.ref,
-                  kind: hero.kind,
-                  id: hero.id
+                  kind: "movie",
+                  id: hero.id,
+                  title: hero.title
                 }
               }
             }
@@ -491,21 +550,14 @@ export async function screen({ state = {}, lang = "es" } = {}) {
               go: {
                 title: {
                   ref: hero.ref,
-                  kind: hero.kind,
-                  id: hero.id
+                  kind: "movie",
+                  id: hero.id,
+                  title: hero.title
                 }
               }
             }
           }
         ]
-      });
-    }
-
-    if (trendingItems.length > 1) {
-      scrollChildren.push({
-        type: "titleRail",
-        title: "Tendencias del Día",
-        items: trendingItems.slice(1, 16)
       });
     }
 
@@ -517,10 +569,18 @@ export async function screen({ state = {}, lang = "es" } = {}) {
       });
     }
 
+    if (trendingItems.length > 0) {
+      scrollChildren.push({
+        type: "titleRail",
+        title: "Tendencias del Cine",
+        items: trendingItems.slice(0, 15)
+      });
+    }
+
     if (tvItems.length > 0) {
       scrollChildren.push({
         type: "titleRail",
-        title: "Series en Tendencia",
+        title: "Series Populares",
         items: tvItems.slice(0, 15)
       });
     }
