@@ -1,0 +1,125 @@
+{
+  "/trending/all/day?language=es-ES": {
+    "results": [
+      {
+        "id": 933260,
+        "title": "La sustancia",
+        "media_type": "movie",
+        "overview": "Tú, pero mejor en todos los sentidos. Esa es la promesa de La Sustancia...",
+        "poster_path": "/w1z75r1eYnL6z6aWc52fC7B2aFk.jpg",
+        "backdrop_path": "/7h6TqPB3ES59whmW9Ev9Ki48aMm.jpg",
+        "release_date": "2024-09-07",
+        "vote_average": 7.3
+      },
+      {
+        "id": 558449,
+        "title": "Gladiator II",
+        "media_type": "movie",
+        "overview": "Años después de presenciar la muerte del héroe Máximo...",
+        "poster_path": "/2cxhvwyEwRlysAmRH4iodkvo0z5.jpg",
+        "backdrop_path": "/euYIwmwkmz95mnXvufEmbL69ovr.jpg",
+        "release_date": "2024-11-05",
+        "vote_average": 6.8
+      }
+    ]
+  },
+  "/trending/all/week?language=es-ES": {
+    "results": [
+      {
+        "id": 933260,
+        "title": "La sustancia",
+        "media_type": "movie",
+        "overview": "Tú, pero mejor...",
+        "poster_path": "/w1z75r1eYnL6z6aWc52fC7B2aFk.jpg",
+        "release_date": "2024-09-07",
+        "vote_average": 7.3
+      }
+    ]
+  },
+  "/movie/popular?language=es-ES": {
+    "results": [
+      {
+        "id": 1184918,
+        "title": "Robot salvaje",
+        "overview": "El épico viaje de un robot que naufraga en una isla deshabitada...",
+        "poster_path": "/9w0Vh9eizTwEZZXagagWR95Debz.jpg",
+        "release_date": "2024-09-12",
+        "vote_average": 8.4
+      }
+    ]
+  },
+  "/tv/popular?language=es-ES": {
+    "results": [
+      {
+        "id": 94605,
+        "name": "Arcane",
+        "overview": "En medio del conflicto entre las ciudades gemelas de Piltóver y Zaun...",
+        "poster_path": "/abf8tHznhv61eGQ799824y8F1b7.jpg",
+        "first_air_date": "2021-11-06",
+        "vote_average": 8.7
+      }
+    ]
+  },
+  "/movie/top_rated?language=es-ES": {
+    "results": [
+      {
+        "id": 278,
+        "title": "Cadena perpetua",
+        "overview": "Esperanza y redención tras los muros de la prisión...",
+        "poster_path": "/zOpe2e7u114620f4f9f257bf3089.jpg",
+        "release_date": "1994-09-23",
+        "vote_average": 8.7
+      }
+    ]
+  },
+  "/discover/tv?language=es-ES&with_genres=16": {
+    "results": [
+      {
+        "id": 85937,
+        "name": "Kimetsu no Yaiba",
+        "overview": "Tanjiro Kamado emprende un peligroso viaje...",
+        "poster_path": "/wrCVHknDaoxPo0v00Y924f46927.jpg",
+        "first_air_date": "2019-04-06",
+        "vote_average": 8.6
+      }
+    ]
+  },
+  "/search/multi?language=es-ES&query=matrix": {
+    "results": [
+      {
+        "id": 603,
+        "title": "Matrix",
+        "media_type": "movie",
+        "overview": "Un hacker descubre la verdadera naturaleza de su realidad...",
+        "poster_path": "/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg",
+        "release_date": "1999-03-30",
+        "vote_average": 8.2
+      }
+    ]
+  },
+  "/tv/1399?language=es-ES": {
+    "id": 1399,
+    "name": "Juego de Tronos",
+    "overview": "Siete familias nobles luchan por el control del mítico país de Poniente...",
+    "poster_path": "/7WUHnWFACjNsQiZMmfo24Ba2Z0E.jpg",
+    "seasons": [
+      {
+        "season_number": 1,
+        "name": "Temporada 1",
+        "episode_count": 10
+      }
+    ]
+  },
+  "/tv/1399/season/1?language=es-ES": {
+    "season_number": 1,
+    "episodes": [
+      {
+        "season_number": 1,
+        "episode_number": 1,
+        "name": "Se acerca el invierno",
+        "overview": "Lord Eddard Stark se preocupa por noticias de un desertor de la Guardia de la Noche...",
+        "still_path": "/wrGWeW4WKxnaeA8sxJb2Sp5O622.jpg"
+      }
+    ]
+  }
+}
