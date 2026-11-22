@@ -1,7 +1,7 @@
 {
   "id": "streambert",
   "name": "StreamBert",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": 20,
   "entry": "plugin.js",
   "description": "Películas, series y anime sin anuncios con resolución multi-fuente estilo Streambert",
@@ -30,7 +30,11 @@
   "streamHosts": "any",
   "screen": {
     "label": "StreamBert",
-    "icon": "movie"
+    "icon": "movie",
+    "opensFrom": ["menu", "settings"],
+    "settingsButton": {
+      "label": "Abrir StreamBert"
+    }
   },
   "recommends": ["xuper-plugin/kino-plugin-kino-resolver"],
   "consumes": {
