@@ -79,41 +79,52 @@ async function fetchTmdb(path, params = {}) {
 }
 
 // Fuentes de streaming inspiradas en Streambert
-function getSources(tmdbId, kind, season, episode) {
+function getSources(tmdbId, kind, season, episode, subLang = "es") {
   const isTv = kind === "series" || (season !== undefined && episode !== undefined);
   const s = season || 1;
   const ep = episode || 1;
+  const lang = subLang || "es";
 
   return [
     {
       id: "vidfast",
       name: "Vidfast",
-      url: isTv ? `https://vidfast.vc/tv/${tmdbId}/${s}/${ep}` : `https://vidfast.vc/movie/${tmdbId}`,
+      url: isTv
+        ? `https://vidfast.vc/tv/${tmdbId}/${s}/${ep}?sub=${lang}&autoPlay=true&title=true`
+        : `https://vidfast.vc/movie/${tmdbId}?sub=${lang}&autoPlay=true&title=true`,
       referer: "https://vidfast.vc/"
     },
     {
       id: "vidsrc",
       name: "VidSrc",
-      url: isTv ? `https://vsembed.su/embed/tv/${tmdbId}/${s}/${ep}` : `https://vsembed.su/embed/movie/${tmdbId}`,
+      url: isTv
+        ? `https://vsembed.su/embed/tv/${tmdbId}/${s}/${ep}?ds_lang=${lang}&autoplay=1`
+        : `https://vsembed.su/embed/movie/${tmdbId}?ds_lang=${lang}&autoplay=1`,
       referer: "https://vsembed.su/"
+    },
+    {
+      id: "vidrift",
+      name: "Vidrift",
+      url: isTv
+        ? `https://embed.vidrift.net/embed/tv/${tmdbId}/${s}/${ep}?sub=${lang}&title=true`
+        : `https://embed.vidrift.net/embed/movie/${tmdbId}?sub=${lang}&title=true`,
+      referer: "https://embed.vidrift.net/"
     },
     {
       id: "vidlove",
       name: "Vidlove",
-      url: isTv ? `https://player.vidlove.cc/embed/tv/${tmdbId}/${s}/${ep}` : `https://player.vidlove.cc/embed/movie/${tmdbId}`,
+      url: isTv
+        ? `https://player.vidlove.cc/embed/tv/${tmdbId}/${s}/${ep}?autoplay=true&sub=${lang}`
+        : `https://player.vidlove.cc/embed/movie/${tmdbId}?autoplay=true&sub=${lang}`,
       referer: "https://player.vidlove.cc/"
     },
     {
       id: "aether",
       name: "Aether",
-      url: isTv ? `https://aether.ist/media/tmdb-tv-${tmdbId}/${s}/${ep}` : `https://aether.ist/media/tmdb-movie-${tmdbId}`,
+      url: isTv
+        ? `https://aether.ist/media/tmdb-tv-${tmdbId}/${s}/${ep}?sub=${lang}`
+        : `https://aether.ist/media/tmdb-movie-${tmdbId}?sub=${lang}`,
       referer: "https://aether.ist/"
-    },
-    {
-      id: "vidrift",
-      name: "Vidrift",
-      url: isTv ? `https://embed.vidrift.net/embed/tv/${tmdbId}/${s}/${ep}` : `https://embed.vidrift.net/embed/movie/${tmdbId}`,
-      referer: "https://embed.vidrift.net/"
     }
   ];
 }
@@ -266,23 +277,59 @@ export async function search(query) {
     .slice(0, 60);
 }
 
+// Detección de idioma y etiqueta para subtítulos
+function detectSubLang(url) {
+  if (!url || typeof url !== "string") return { code: "es", label: "🇪🇸 Español" };
+  const lower = url.toLowerCase();
+  if (lower.includes("lat") || lower.includes("latin")) return { code: "lat", label: "🇨🇴 Español (Latino)" };
+  if (lower.includes("es") || lower.includes("spa") || lower.includes("spanish") || lower.includes("castellano")) {
+    return { code: "es", label: "🇪🇸 Español" };
+  }
+  if (lower.includes("en") || lower.includes("eng") || lower.includes("english")) {
+    return { code: "en", label: "🇺🇸 Inglés" };
+  }
+  if (lower.includes("pt") || lower.includes("por") || lower.includes("portuguese") || lower.includes("brazil")) {
+    return { code: "pt", label: "🇧🇷 Portugués" };
+  }
+  if (lower.includes("fr") || lower.includes("fra") || lower.includes("french")) {
+    return { code: "fr", label: "🇫🇷 Francés" };
+  }
+  if (lower.includes("de") || lower.includes("ger") || lower.includes("german")) {
+    return { code: "de", label: "🇩🇪 Alemán" };
+  }
+  if (lower.includes("it") || lower.includes("ita") || lower.includes("italian")) {
+    return { code: "it", label: "🇮🇹 Italiano" };
+  }
+  return { code: "es", label: "🇪🇸 Subtítulos" };
+}
+
 // Normalizador seguro de subtítulos para el contrato de Kino
 function normalizeSubtitles(subs) {
   if (!Array.isArray(subs)) return [];
-  return subs
-    .filter((s) => s && (typeof s.url === "string" || typeof s === "string"))
-    .map((s) => {
-      if (typeof s === "string") {
-        return { url: s, lang: "es", label: "Español", format: "vtt" };
-      }
-      return {
-        url: s.url,
-        lang: s.lang || s.language || "es",
-        label: s.label || s.title || "Subtítulo",
-        format: s.format || (s.url.includes(".srt") ? "srt" : "vtt")
-      };
-    })
-    .slice(0, 15);
+  const seen = new Set();
+  const res = [];
+
+  for (const s of subs) {
+    if (!s) continue;
+    const url = typeof s === "string" ? s : s.url;
+    if (!url || typeof url !== "string" || !url.startsWith("http")) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+
+    const detected = detectSubLang(url);
+    const lang = typeof s === "object" && s.lang ? s.lang : detected.code;
+    const label = typeof s === "object" && s.label ? s.label : detected.label;
+    const format = typeof s === "object" && s.format ? s.format : url.includes(".srt") ? "srt" : "vtt";
+
+    res.push({
+      url,
+      lang,
+      label,
+      format
+    });
+  }
+
+  return res.slice(0, 15);
 }
 
 // ── Export: episodes ─────────────────────────────────────────────────────────
@@ -403,18 +450,21 @@ export async function resolve(ref) {
   const episode = target.episode;
 
   let preferredSource = "vidfast";
+  let subLang = "es";
   let enableResolver = true;
 
   try {
     if (typeof kino !== "undefined" && kino.config && typeof kino.config.get === "function") {
       const srcConf = await kino.config.get("default_source");
       if (srcConf) preferredSource = srcConf;
+      const subConf = await kino.config.get("sub_lang");
+      if (subConf) subLang = subConf;
       const resConf = await kino.config.get("enable_resolver");
       if (resConf !== undefined) enableResolver = resConf;
     }
   } catch {}
 
-  const sources = getSources(tmdbId, kind, season, episode);
+  const sources = getSources(tmdbId, kind, season, episode, subLang);
 
   // Reordenar para probar primero la fuente preferida
   sources.sort((a, b) => {
@@ -435,7 +485,7 @@ export async function resolve(ref) {
             mime: direct.mime || "application/x-mpegURL",
             headers: direct.headers || { Referer: src.url },
             subtitles: normalizeSubtitles(direct.subtitles),
-            label: `StreamBert (${src.name})`
+            label: `StreamBert (${src.name}) • 🇺🇸 VO / Subtitulado`
           };
         }
       } catch {}
@@ -445,8 +495,9 @@ export async function resolve(ref) {
     if (typeof kino !== "undefined" && kino.browser && typeof kino.browser.capture === "function") {
       try {
         const capture = await kino.browser.capture(src.url, {
-          timeoutMs: 12000,
+          timeoutMs: 14000,
           autoplay: true,
+          captureAll: true,
           headers: {
             "User-Agent":
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -474,12 +525,25 @@ export async function resolve(ref) {
           const media = candidates.find((m) => m.url && m.url.includes(".m3u8")) || candidates[0];
 
           if (media && media.url) {
+            // Recoger subtítulos interceptados tanto en capture.subtitles como en capture.media
+            const rawSubs = [];
+            if (Array.isArray(capture.subtitles)) {
+              rawSubs.push(...capture.subtitles);
+            }
+            if (Array.isArray(capture.media)) {
+              for (const cm of capture.media) {
+                if (cm && cm.url && (cm.url.includes(".vtt") || cm.url.includes(".srt"))) {
+                  rawSubs.push(cm);
+                }
+              }
+            }
+
             return {
               url: media.url,
               mime: media.mime || (media.url.includes(".m3u8") ? "application/x-mpegURL" : "video/mp4"),
               headers: media.headers || { Referer: src.referer },
-              subtitles: normalizeSubtitles(capture.subtitles),
-              label: `StreamBert (${src.name})`
+              subtitles: normalizeSubtitles(rawSubs),
+              label: `StreamBert (${src.name}) • 🇺🇸 VO / Subtitulado`
             };
           }
         }
@@ -812,7 +876,7 @@ export async function screen({ state = {}, lang = "es" } = {}) {
             },
             {
               type: "text",
-              text: `Versión 1.0.3 • Servidor activo: ${currentSourceName}`,
+              text: `Versión 1.0.4 • Servidor activo: ${currentSourceName}`,
               color: "muted"
             },
             {
