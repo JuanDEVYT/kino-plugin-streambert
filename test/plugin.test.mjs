@@ -11,7 +11,7 @@ test("Manifest valid and has required keys", () => {
   const manifest = JSON.parse(raw);
   assert.equal(manifest.id, "streambert");
   assert.equal(manifest.name, "StreamBert");
-  assert.equal(manifest.version, "1.0.5");
+  assert.equal(manifest.version, "1.0.6");
   assert.equal(manifest.apiVersion, 20);
   assert.ok(manifest.capabilities.includes("screen"));
   assert.ok(manifest.capabilities.includes("resolve"));
@@ -53,13 +53,9 @@ test("screenEvent handles tab change and settings change", async () => {
   const tabRes = await plugin.screenEvent({ name: "changeTab", value: "movies" });
   assert.deepEqual(tabRes, { state: { tab: "movies" } });
 
-  const srcRes = await plugin.screenEvent({ name: "changeSource", value: "aether" });
-  assert.equal(srcRes.config.default_source, "aether");
-  assert.equal(srcRes.state.source, "aether");
-
-  const audRes = await plugin.screenEvent({ name: "changeAudioPref", value: "es" });
-  assert.equal(audRes.config.audio_pref, "es");
-  assert.equal(audRes.state.audioPref, "es");
+  const srcRes = await plugin.screenEvent({ name: "changeSource", value: "vidfast" });
+  assert.equal(srcRes.config.default_source, "vidfast");
+  assert.equal(srcRes.state.source, "vidfast");
 });
 
 test("All 4 Screen tabs produce valid trees without dropped nodes", async () => {

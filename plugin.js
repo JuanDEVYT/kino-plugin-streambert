@@ -79,7 +79,7 @@ async function fetchTmdb(path, params = {}) {
 }
 
 // Fuentes de streaming inspiradas en Streambert
-function getSources(tmdbId, kind, season, episode, subLang = "es", audioPref = "es") {
+function getSources(tmdbId, kind, season, episode, subLang = "es") {
   const isTv = kind === "series" || (season !== undefined && episode !== undefined);
   const s = season || 1;
   const ep = episode || 1;
@@ -87,30 +87,10 @@ function getSources(tmdbId, kind, season, episode, subLang = "es", audioPref = "
 
   return [
     {
-      id: "aether",
-      name: "Aether",
-      hasMultiAudio: true,
-      audioLabel: "🇪🇸 Multi-audio (Español)",
-      url: isTv
-        ? `https://aether.ist/media/tmdb-tv-${tmdbId}/${s}/${ep}?sub=${lang}&dub=${audioPref}`
-        : `https://aether.ist/media/tmdb-movie-${tmdbId}?sub=${lang}&dub=${audioPref}`,
-      referer: "https://aether.ist/"
-    },
-    {
-      id: "vidrift",
-      name: "Vidrift",
-      hasMultiAudio: true,
-      audioLabel: "🇪🇸 Multi-audio / Anime",
-      url: isTv
-        ? `https://embed.vidrift.net/embed/tv/${tmdbId}/${s}/${ep}?sub=${lang}&title=true`
-        : `https://embed.vidrift.net/embed/movie/${tmdbId}?sub=${lang}&title=true`,
-      referer: "https://embed.vidrift.net/"
-    },
-    {
       id: "vidfast",
       name: "Vidfast",
-      hasMultiAudio: false,
-      audioLabel: "🇺🇸 VO Inglés",
+      hasAudio: true,
+      audioLabel: "Audio integrado (VO)",
       url: isTv
         ? `https://vidfast.vc/tv/${tmdbId}/${s}/${ep}?sub=${lang}&autoPlay=true&title=true`
         : `https://vidfast.vc/movie/${tmdbId}?sub=${lang}&autoPlay=true&title=true`,
@@ -119,8 +99,8 @@ function getSources(tmdbId, kind, season, episode, subLang = "es", audioPref = "
     {
       id: "vidsrc",
       name: "VidSrc",
-      hasMultiAudio: false,
-      audioLabel: "🇺🇸 VO Inglés",
+      hasAudio: true,
+      audioLabel: "Audio integrado (VO)",
       url: isTv
         ? `https://vsembed.su/embed/tv/${tmdbId}/${s}/${ep}?ds_lang=${lang}&autoplay=1`
         : `https://vsembed.su/embed/movie/${tmdbId}?ds_lang=${lang}&autoplay=1`,
@@ -129,12 +109,32 @@ function getSources(tmdbId, kind, season, episode, subLang = "es", audioPref = "
     {
       id: "vidlove",
       name: "Vidlove",
-      hasMultiAudio: false,
-      audioLabel: "🇺🇸 VO Inglés",
+      hasAudio: true,
+      audioLabel: "Audio integrado (VO)",
       url: isTv
         ? `https://player.vidlove.cc/embed/tv/${tmdbId}/${s}/${ep}?autoplay=true&sub=${lang}`
         : `https://player.vidlove.cc/embed/movie/${tmdbId}?autoplay=true&sub=${lang}`,
       referer: "https://player.vidlove.cc/"
+    },
+    {
+      id: "vidrift",
+      name: "Vidrift",
+      hasAudio: true,
+      audioLabel: "Anime / Multi",
+      url: isTv
+        ? `https://embed.vidrift.net/embed/tv/${tmdbId}/${s}/${ep}?sub=${lang}&title=true`
+        : `https://embed.vidrift.net/embed/movie/${tmdbId}?sub=${lang}&title=true`,
+      referer: "https://embed.vidrift.net/"
+    },
+    {
+      id: "aether",
+      name: "Aether",
+      hasAudio: true,
+      audioLabel: "Multi-idioma",
+      url: isTv
+        ? `https://aether.ist/media/tmdb-tv-${tmdbId}/${s}/${ep}?sub=${lang}`
+        : `https://aether.ist/media/tmdb-movie-${tmdbId}?sub=${lang}`,
+      referer: "https://aether.ist/"
     }
   ];
 }
@@ -458,10 +458,10 @@ export async function resolve(ref) {
   const kind = target.kind || "movie";
   const season = target.season;
   const episode = target.episode;
+  const forcedSource = target.source || target.src;
 
-  let preferredSource = "aether";
+  let preferredSource = "vidfast";
   let subLang = "es";
-  let audioPref = "es";
   let enableResolver = true;
 
   try {
@@ -470,29 +470,45 @@ export async function resolve(ref) {
       if (srcConf) preferredSource = srcConf;
       const subConf = await kino.config.get("sub_lang");
       if (subConf) subLang = subConf;
-      const audConf = await kino.config.get("audio_pref");
-      if (audConf) audioPref = audConf;
       const resConf = await kino.config.get("enable_resolver");
       if (resConf !== undefined) enableResolver = resConf;
     }
   } catch {}
 
-  const sources = getSources(tmdbId, kind, season, episode, subLang, audioPref);
+  const sources = getSources(tmdbId, kind, season, episode, subLang);
 
-  // Reordenar para priorizar la fuente preferida y servidores con multi-audio cuando se pide español
+  // Si el usuario seleccionó un servidor concreto en el reproductor (alternative)
+  if (forcedSource) {
+    preferredSource = forcedSource;
+  }
+
+  // Ordenar para probar primero la fuente preferida
   sources.sort((a, b) => {
     if (a.id === preferredSource) return -1;
     if (b.id === preferredSource) return 1;
-    if (audioPref === "es") {
-      if (a.hasMultiAudio && !b.hasMultiAudio) return -1;
-      if (!a.hasMultiAudio && b.hasMultiAudio) return 1;
-    }
     return 0;
   });
 
+  // Generar alternativas lazy para cambiar de servidor desde el reproductor de Kino
+  const buildAlternatives = (activeSourceId) => {
+    return sources
+      .filter((s) => s.id !== activeSourceId)
+      .slice(0, 4)
+      .map((s) => ({
+        label: `${s.name} (${s.audioLabel})`,
+        ref: JSON.stringify({
+          id: tmdbId,
+          kind,
+          season,
+          episode,
+          source: s.id
+        })
+      }));
+  };
+
   // Intentar resolver mediante cada fuente secuencialmente
   for (const src of sources) {
-    const audioBadge = src.hasMultiAudio ? "🇪🇸 Multi-audio / Español" : "🇺🇸 VO Inglés";
+    const streamAlternatives = buildAlternatives(src.id);
 
     // 1. Delegar en Kino Resolver si está disponible y la fuente es un hoster directo
     if (enableResolver && typeof kino !== "undefined" && kino.plugins && typeof kino.plugins.call === "function") {
@@ -504,7 +520,8 @@ export async function resolve(ref) {
             mime: direct.mime || "application/x-mpegURL",
             headers: direct.headers || { Referer: src.url },
             subtitles: normalizeSubtitles(direct.subtitles),
-            label: `StreamBert (${src.name}) • ${audioBadge}`
+            label: `StreamBert (${src.name})`,
+            alternatives: streamAlternatives
           };
         }
       } catch {}
@@ -525,7 +542,7 @@ export async function resolve(ref) {
         });
 
         if (capture && capture.media && capture.media.length > 0) {
-          // Filtrar anuncios y rastreadores conocidos
+          // Filtrar anuncios, rastreadores conocidos y segmentos vacíos
           const cleanMedia = capture.media.filter((m) => {
             if (!m || !m.url) return false;
             const u = m.url.toLowerCase();
@@ -541,6 +558,7 @@ export async function resolve(ref) {
           });
 
           const candidates = cleanMedia.length > 0 ? cleanMedia : capture.media;
+          // Preferir listas de reproducción HLS completas (.m3u8) o video MP4
           const media = candidates.find((m) => m.url && m.url.includes(".m3u8")) || candidates[0];
 
           if (media && media.url) {
@@ -562,7 +580,8 @@ export async function resolve(ref) {
               mime: media.mime || (media.url.includes(".m3u8") ? "application/x-mpegURL" : "video/mp4"),
               headers: media.headers || { Referer: src.referer },
               subtitles: normalizeSubtitles(rawSubs),
-              label: `StreamBert (${src.name}) • ${audioBadge}`
+              label: `StreamBert (${src.name})`,
+              alternatives: streamAlternatives
             };
           }
         }
@@ -582,9 +601,8 @@ export async function resolve(ref) {
 export async function screen({ state = {}, lang = "es" } = {}) {
   const tab = state.tab || "home";
 
-  let preferredSource = state.source || "aether";
+  let preferredSource = state.source || "vidfast";
   let subLang = state.subLang || "es";
-  let audioPref = state.audioPref || "es";
 
   try {
     if (typeof kino !== "undefined" && kino.config && typeof kino.config.get === "function") {
@@ -592,17 +610,15 @@ export async function screen({ state = {}, lang = "es" } = {}) {
       if (s) preferredSource = s;
       const l = await kino.config.get("sub_lang");
       if (l) subLang = l;
-      const a = await kino.config.get("audio_pref");
-      if (a) audioPref = a;
     }
   } catch {}
 
   const sourceLabels = {
-    aether: "Aether (🇪🇸 Multi-audio)",
-    vidrift: "Vidrift (🇪🇸 Anime/Multi)",
-    vidfast: "Vidfast (🇺🇸 VO)",
-    vidsrc: "VidSrc (🇺🇸 VO)",
-    vidlove: "Vidlove (🇺🇸 VO)"
+    vidfast: "Vidfast (Audio OK)",
+    vidsrc: "VidSrc (Audio OK)",
+    vidlove: "Vidlove (Audio OK)",
+    vidrift: "Vidrift (Anime)",
+    aether: "Aether (Experimental)"
   };
 
   const currentSourceName = sourceLabels[preferredSource] || preferredSource;
@@ -898,7 +914,7 @@ export async function screen({ state = {}, lang = "es" } = {}) {
             },
             {
               type: "text",
-              text: `Versión 1.0.5 • Servidor activo: ${currentSourceName}`,
+              text: `Versión 1.0.6 • Servidor activo: ${currentSourceName}`,
               color: "muted"
             },
             {
@@ -913,38 +929,12 @@ export async function screen({ state = {}, lang = "es" } = {}) {
           children: [
             {
               type: "text",
-              text: "Preferencia de Audio",
-              style: "h3"
-            },
-            {
-              type: "text",
-              text: "Prioriza servidores con doblaje y pistas de audio en español:",
-              color: "muted"
-            },
-            {
-              type: "chips",
-              key: "chips_audio",
-              value: audioPref,
-              options: [
-                { value: "es", label: "🇪🇸 Español (Multi-Audio)" },
-                { value: "en", label: "🇺🇸 Inglés (VO)" }
-              ],
-              onChange: { event: "changeAudioPref" }
-            }
-          ]
-        },
-        {
-          type: "card",
-          variant: "plain",
-          children: [
-            {
-              type: "text",
               text: "Servidor Principal de Extracción",
               style: "h3"
             },
             {
               type: "text",
-              text: "Selecciona el proveedor inicial que se probará primero al reproducir:",
+              text: "Selecciona el proveedor inicial con pista de sonido verificada:",
               color: "muted"
             },
             {
@@ -952,11 +942,11 @@ export async function screen({ state = {}, lang = "es" } = {}) {
               key: "chips_source",
               value: preferredSource,
               options: [
-                { value: "aether", label: "Aether (🇪🇸 Multi)" },
-                { value: "vidrift", label: "Vidrift (🇪🇸 Anime)" },
-                { value: "vidfast", label: "Vidfast (🇺🇸 VO)" },
-                { value: "vidsrc", label: "VidSrc (🇺🇸 VO)" },
-                { value: "vidlove", label: "Vidlove (🇺🇸 VO)" }
+                { value: "vidfast", label: "Vidfast (Recomendado)" },
+                { value: "vidsrc", label: "VidSrc (Estable)" },
+                { value: "vidlove", label: "Vidlove" },
+                { value: "vidrift", label: "Vidrift (Anime)" },
+                { value: "aether", label: "Aether" }
               ],
               onChange: { event: "changeSource" }
             }
@@ -1010,18 +1000,6 @@ export async function screenEvent({ name, value, arg, state = {} } = {}) {
         ...state,
         tab: chosen || "home"
       }
-    };
-  }
-
-  if (name === "changeAudioPref") {
-    const newAudio = chosen || "es";
-    return {
-      config: { audio_pref: newAudio },
-      state: {
-        ...state,
-        audioPref: newAudio
-      },
-      toast: `Preferencia de audio: ${newAudio === "es" ? "🇪🇸 Español" : "🇺🇸 Inglés"}`
     };
   }
 

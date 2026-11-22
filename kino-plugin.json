@@ -1,7 +1,7 @@
 {
   "id": "streambert",
   "name": "StreamBert",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "apiVersion": 20,
   "entry": "plugin.js",
   "description": "Películas, series y anime sin anuncios con resolución multi-fuente estilo Streambert",
@@ -46,28 +46,17 @@
   },
   "settings": [
     {
-      "key": "audio_pref",
-      "type": "select",
-      "label": "Preferencia de audio",
-      "hint": "Priorizar fuentes con doblaje en español (Castellano/Latino)",
-      "default": "es",
-      "options": [
-        { "value": "es", "label": "🇪🇸 Español (Multi-Audio)" },
-        { "value": "en", "label": "🇺🇸 Inglés (Versión Original)" }
-      ]
-    },
-    {
       "key": "default_source",
       "type": "select",
       "label": "Fuente principal",
-      "hint": "Servidor de extracción inicial para películas y series",
-      "default": "aether",
+      "hint": "Servidor de extracción inicial con audio integrado",
+      "default": "vidfast",
       "options": [
-        { "value": "aether", "label": "Aether (🇪🇸 Multi-audio / Español)" },
-        { "value": "vidfast", "label": "Vidfast (🇺🇸 VO Inglés)" },
-        { "value": "vidsrc", "label": "VidSrc (🇺🇸 VO Inglés)" },
-        { "value": "vidrift", "label": "Vidrift (🇪🇸 Anime / Multi-audio)" },
-        { "value": "vidlove", "label": "Vidlove (🇺🇸 VO Inglés)" }
+        { "value": "vidfast", "label": "Vidfast (Recomendado • Con Audio)" },
+        { "value": "vidsrc", "label": "VidSrc (Estable • Con Audio)" },
+        { "value": "vidlove", "label": "Vidlove (Rápido)" },
+        { "value": "aether", "label": "Aether (Experimental)" },
+        { "value": "vidrift", "label": "Vidrift (Anime)" }
       ]
     },
     {
